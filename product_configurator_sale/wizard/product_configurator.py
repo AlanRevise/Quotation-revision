@@ -24,12 +24,21 @@ class ProductConfiguratorSale(models.TransientModel):
 
         # calculate new price
         total_price = 0
+        cost_price = 0
         if self.quantity:
             quantity = ast.literal_eval(self.quantity)
             attr_val_obj = self.env["product.attribute.value"]
             extra_prices = attr_val_obj.get_attribute_value_extra_prices(
                 product_tmpl_id=self.product_tmpl_id.id, pt_attr_value_ids=self.value_ids
             )
+
+            # compute cost price here.
+            for rec in self.value_ids:
+                qty = 1
+                if quantity.get('__quantity-' + str(rec.attribute_id.id)):
+                    qty = quantity.get('__quantity-' + str(rec.attribute_id.id))
+                cost_price += (qty * rec.product_id.standard_price)
+
             for attrib_val in self.value_ids:
                 if quantity.get('__quantity-'+str(attrib_val.attribute_id.id)):
                     qty = quantity.get('__quantity-' + str(attrib_val.attribute_id.id))
@@ -44,6 +53,7 @@ class ProductConfiguratorSale(models.TransientModel):
                 "config_session_id": self.config_session_id.id,
                 "name": product._get_mako_tmpl_name(),
                 "customer_lead": product.sale_delay,
+                "purchase_price": cost_price,
             }
         )
         return line_vals

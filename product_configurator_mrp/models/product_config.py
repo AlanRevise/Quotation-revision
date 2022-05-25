@@ -33,7 +33,8 @@ class ProductConfigSession(models.Model):
         custom_product_attrib = {}
         for attribute in variant.product_template_attribute_value_ids:
             vals = '__quantity-'+str(attribute.attribute_id.id)
-            custom_product_attrib.update({attribute.product_attribute_value_id.product_id.id: vals})
+            # custom_product_attrib.update({attribute.product_attribute_value_id.product_id.id: vals})
+            custom_product_attrib.update({vals: attribute.product_attribute_value_id.product_id.id})
 
         attr_values = variant.product_template_attribute_value_ids.mapped(
             "product_attribute_value_id"
@@ -56,6 +57,7 @@ class ProductConfigSession(models.Model):
             limit=1,
         )
         bom_lines = []
+        update_bom_lines = []
         value_ids = self.value_ids.product_id.ids
 
         quantity = False
@@ -64,11 +66,13 @@ class ProductConfigSession(models.Model):
         if not parent_bom:
             # If not Bom, then Cycle through attributes to add their
             # related products to the bom lines.
-            for product in attr_products:
+            for rec in variant.product_template_attribute_value_ids:
+                product = rec.product_attribute_value_id.product_id
                 vals = 1
                 # check for the custom quantity.
-                if custom_product_attrib.get(product.id) and quantity and quantity.get(custom_product_attrib.get(product.id)):
-                    vals = quantity.get(custom_product_attrib.get(product.id))
+                # if custom_product_attrib.get(product.id) and quantity and quantity.get(custom_product_attrib.get(product.id)):
+                if rec.attribute_id and quantity and '__quantity-'+str(rec.attribute_id.id) in list(custom_product_attrib.keys()):
+                    vals = quantity.get('__quantity-'+str(rec.attribute_id.id))
 
                 # for key, vals in quantity.items():
                 bom_line_vals = {"product_id": product.id, "product_qty": vals}
@@ -80,6 +84,24 @@ class ProductConfigSession(models.Model):
                 values = self.get_vals_to_write(values=values, model="mrp.bom.line")
                 values.update(bom_line_vals)
                 bom_lines.append((0, 0, values))
+
+            # check if bom_line already have the product then update the qty otherwise add a new line.
+            for bom_line in bom_lines:
+                result = True
+                for new_bom_line in update_bom_lines:
+                    if new_bom_line[2].get('product_id') == bom_line[2].get('product_id'):
+                        result = False
+                        new_bom_line[2]['product_qty'] = new_bom_line[2].get('product_qty') + bom_line[2].get('product_qty')
+
+                if result:
+                    update_bom_lines.append(bom_line)
+
+                if not update_bom_lines:
+                    update_bom_lines.append(bom_line)
+
+            # Update Bom Lines
+            bom_lines = update_bom_lines
+
         else:
             # If parent BOM is used, then look through Config Sets
             # on parent product's bom to add the products to the bom lines.
