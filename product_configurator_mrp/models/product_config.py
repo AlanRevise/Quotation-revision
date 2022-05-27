@@ -68,11 +68,13 @@ class ProductConfigSession(models.Model):
             # related products to the bom lines.
             for rec in variant.product_template_attribute_value_ids:
                 product = rec.product_attribute_value_id.product_id
-                vals = 1
+                vals = False
                 # check for the custom quantity.
                 # if custom_product_attrib.get(product.id) and quantity and quantity.get(custom_product_attrib.get(product.id)):
                 if rec.attribute_id and quantity and '__quantity-'+str(rec.attribute_id.id) in list(custom_product_attrib.keys()):
                     vals = quantity.get('__quantity-'+str(rec.attribute_id.id))
+                if not vals:
+                    vals = 1
 
                 # for key, vals in quantity.items():
                 bom_line_vals = {"product_id": product.id, "product_qty": vals}
